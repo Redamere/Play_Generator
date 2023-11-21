@@ -167,3 +167,60 @@ checkpoint_callback=tf.keras.callbacks.ModelCheckpoint(
 #-----Training the model-----#
 
 history = model.fit(data, epochs=40, callbacks=[checkpoint_callback]) #Do not run this on a slow machine, training takes excessively long
+
+#-----Loading the model-----#
+
+# rebuild the model from a checkpoint using a batch_size of 1 so that we can feed one piece of text to the model and have it make a prediction
+
+model = build_model(VOCAB_SIZE, EMBEDDING_DIMENSION, RNN_UNITS, batch_size=1)
+
+# Once the model is finished training, we can find the latest checkpoint that stores the model's weights using the following line
+
+model.load_weights(tf.train.latest_checkpoint(checkpoint_dir))
+model.build(tf.TensorShape([1, None]))
+
+# We can load any checkpointwe want by specifying the exact file to load
+
+checkpoint_num = 10
+model.load_weights(tf.train.load_checkpoint("./training_checkpoints/ckpt_" + str(checkpoint_num)))
+model.build(tf.TensorShape([1, None])) # 1 means expect the input '1', None means we do not know what the next dimension will be
+
+# Use the function below to to generate text using any starting string we would like
+
+def generate_text(model, start_string):
+     # Evaluation step (generating text using the learned model)
+
+     # number of chacaters to generate
+     num_generate = 800
+
+     # converting our start string to numbers (vectorizing)
+     input_eval = [char2idx[s] for s in start_string]
+     input_eval = tf.expand_dims(input_eval, 0)
+
+     text_generated= []
+
+     # Low temperatures resilts in more predictable text.
+     # Higher temperatures results in more surprising texts.
+     # Experiment to find the best setting.
+     temperature = 1.0
+
+     # Here, batch_size == 1
+     model.rest_states()
+     for i in range(num_generate):
+          predictions= model(input_eval)
+          # remove the batch dimension
+          predictions= tf.squeeze(predictions, 0)
+
+          #using a categorical distribution to predict the character returned by the model
+          predictions = predictions / temperature
+          predicted_id = tf.random.categorical(predictions, num_samples=1)[-1,0].numpy()
+
+          # We pass the predicted character as the next input to the model along with the precious hidden state
+
+          input_eval = tf.expand_dims([predicted_id], 0)
+
+          text_generated.append(idx2char[predicted_id])
+     return (start_string + ''.join(text_generated))
+
+inp = input("Type a starting string: ")
+print(generate_text(model, inp))
